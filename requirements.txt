@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-doctr[viz]
+pdf2image
+opencv-python-headless
+numpy
+matplotlib
+requests
