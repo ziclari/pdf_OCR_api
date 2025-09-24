@@ -4,6 +4,7 @@ from pdf2image import convert_from_path
 import cv2
 import numpy as np
 import os
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -14,6 +15,8 @@ RESULT_DIR = "result"
 os.makedirs(DEBUG_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
 
+class ProcesamientoRequest(BaseModel):
+    pdf_url: str
 
 # === Función para detectar si un bloque es tipo tabla ===
 def is_table_like(block_gray):
@@ -28,12 +31,13 @@ def is_table_like(block_gray):
 
 # === Endpoint: procesamiento del PDF ===
 @router.post("/procesamiento/")
-def procesamiento(pdf_url: str):
+def procesamiento(data: ProcesamientoRequest):
     try:
+        pdf_url = data.pdf_url
         if not os.path.exists(pdf_url):
             raise HTTPException(status_code=404, detail="Archivo no encontrado")
 
-        pages = convert_from_path(pdf_url, dpi=300)
+        pages = convert_from_path(pdf_url, dpi=300, poppler_path=r"C:\poppler-25.07.0\Library\bin")
         debug_paths = []
         table_paths = []
 
