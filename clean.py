@@ -2,8 +2,20 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 import requests
 import re
+import os
+import requests
+from dotenv import load_dotenv
+from pydantic import BaseModel
+
+load_dotenv()
 
 router = APIRouter()
+
+LLAMA_API_KEY = os.getenv("LLAMA_API_KEY")
+LLAMA_API_URL = os.getenv("LLAMA_API_URL")
+
+class LimpiarRequest(BaseModel):
+    string_result: str
 
 # === Función para limpiar cabeceras ===
 def discard_after_headers(text: str) -> str:
@@ -27,22 +39,57 @@ def discard_after_headers(text: str) -> str:
 
 # === Endpoint: limpiar y enviar a webhook ===
 @router.post("/limpiar/")
-def limpiar(string_result: str):
+def limpiar(data: LimpiarRequest):
     try:
+        string_result = data.string_result
         # limpiar texto OCR
         cleaned = discard_after_headers(string_result)
 
         if not cleaned:
             return JSONResponse(status_code=400, content={"message": "No se pudo limpiar el texto"})
 
-        # enviar al webhook n8n
-        url = "https://tplrmklmqgfenjvwdtsnygiv.hooks.n8n.cloud/webhook-test/e8546515-9b65-49cb-9d90-c1498c9cf503" #este es de ejemplo
-        response = requests.post(url, json={"mensaje": cleaned})
+        # leer el prompt base desde archivo
+        with open("prompt.txt", "r", encoding="utf-8") as f:
+            base_prompt = f.read()
+
+        # armar el mensaje para la AI
+        payload = {
+            "model": "llama3.1:latest",  # o el que tengas cargado
+            "messages": [
+                {"role": "system", "content": base_prompt},
+                {"role": "user", "content": cleaned},
+            ],
+            "stream": False,
+            "format": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "items": [
+                        {"type": "string"},
+                        {"type": "string"},
+                        {"type": "string"},
+                        {"type": "string"}
+                    ]
+                }
+            },
+            "options": {
+                "temperature": 0,
+                "top_p": 0.005,
+            }
+        }
+
+
+        headers = {"Authorization": f"Bearer {LLAMA_API_KEY}"}
+
+        response = requests.post(LLAMA_API_URL, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        print(data)
+        ai_output = data["message"]["content"]
 
         return JSONResponse(content={
-            "message": "Datos limpiados y enviados",
-            "status_code": response.status_code,
-            "respuesta": response.text
+            "message": "Datos limpiados y enviados a Llama",
+            "ai_result": ai_output
         })
 
     except Exception as e:
