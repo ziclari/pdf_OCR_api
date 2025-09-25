@@ -2,18 +2,24 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
-from doctr.utils.visualization import visualize_page
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import cv2
 import os
 import uuid
+from pydantic import BaseModel
+from typing import List
 
 router = APIRouter()
 
 RESULT_DIR = "result"
 PREDICT_DIR = "predicciones"
 os.makedirs(PREDICT_DIR, exist_ok=True)
+
+class PredictRequest(BaseModel):
+    tables: List[str]
 
 def draw_overlay(image_path: str, page, save_dir: str) -> str:
     """
@@ -60,9 +66,9 @@ def draw_overlay(image_path: str, page, save_dir: str) -> str:
 
 # === Endpoint: predecir con OCR ===
 @router.post("/predecir/")
-def predecir():
+def predecir(request: PredictRequest):
     try:
-        archivos = [os.path.join(RESULT_DIR, f) for f in os.listdir(RESULT_DIR) if os.path.isfile(os.path.join(RESULT_DIR, f))]
+        archivos = request.tables
 
         if not archivos:
             return JSONResponse(status_code=404, content={"message": "No hay imágenes para procesar en result/"})

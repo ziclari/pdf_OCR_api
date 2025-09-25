@@ -6,13 +6,13 @@ import os
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from google import genai
 
 load_dotenv()
 
 router = APIRouter()
 
-LLAMA_API_KEY = os.getenv("LLAMA_API_KEY")
-LLAMA_API_URL = os.getenv("LLAMA_API_URL")
+api_key_value =os.getenv("GOOGLE_API_KEY")
 
 class LimpiarRequest(BaseModel):
     string_result: str
@@ -48,44 +48,27 @@ def limpiar(data: LimpiarRequest):
         if not cleaned:
             return JSONResponse(status_code=400, content={"message": "No se pudo limpiar el texto"})
 
+        if not api_key_value:
+            return JSONResponse(status_code=400, content={"message": "La variable de entorno GOOGLE_API_KEY no está configurada o está vacía."})
+
         # leer el prompt base desde archivo
         with open("prompt.txt", "r", encoding="utf-8") as f:
             base_prompt = f.read()
 
-        # armar el mensaje para la AI
-        payload = {
-            "model": "llama3.1:latest",  # o el que tengas cargado
-            "messages": [
-                {"role": "system", "content": base_prompt},
-                {"role": "user", "content": cleaned},
-            ],
-            "stream": False,
-            "format": {
-                "type": "array",
-                "items": {
-                    "type": "array",
-                    "items": [
-                        {"type": "string"},
-                        {"type": "string"},
-                        {"type": "string"},
-                        {"type": "string"}
-                    ]
-                }
-            },
-            "options": {
-                "temperature": 0,
-                "top_p": 0.005,
-            }
-        }
+        try:
+            client = genai.Client(api_key=api_key_value)
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"message": "Error al inicializar el cliente", "error": str(e)})
 
+        model_name = 'gemini-2.5-flash' 
+        full_prompt = base_prompt.format(input_tokens=cleaned)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=full_prompt
+        )
 
-        headers = {"Authorization": f"Bearer {LLAMA_API_KEY}"}
-
-        response = requests.post(LLAMA_API_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        print(data)
-        ai_output = data["message"]["content"]
+        ai_output = response.text
+        print(ai_output)
 
         return JSONResponse(content={
             "message": "Datos limpiados y enviados a Llama",

@@ -50,4 +50,8 @@
   <final_instruction>
     Devuelve SOLO un JSON válido (array de arrays). Nada más.
   </final_instruction>
+  Procesa los siguientes tokens de entrada:
+  <input_tokens>
+  {input_tokens}
+  </input_tokens>
 </ocr_analysis_prompt>
