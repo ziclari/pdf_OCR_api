@@ -1,12 +1,12 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-import requests
 import re
 import os
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from google import genai
+import json
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ router = APIRouter()
 api_key_value =os.getenv("GOOGLE_API_KEY")
 
 class LimpiarRequest(BaseModel):
-    string_result: str
+    string_result: list[str]
 
 # === Función para limpiar cabeceras ===
 def discard_after_headers(text: str) -> str:
@@ -36,44 +36,49 @@ def discard_after_headers(text: str) -> str:
 
     return ""
 
-
-# === Endpoint: limpiar y enviar a webhook ===
 @router.post("/limpiar/")
 def limpiar(data: LimpiarRequest):
-    try:
-        string_result = data.string_result
-        # limpiar texto OCR
-        cleaned = discard_after_headers(string_result)
+    results = []
+    """
+    # leer el prompt base desde archivo
+    with open("prompt.txt", "r", encoding="utf-8") as f:
+        base_prompt = f.read()
 
-        if not cleaned:
-            return JSONResponse(status_code=400, content={"message": "No se pudo limpiar el texto"})
+    if not data.string_result:
+        return JSONResponse(status_code=400, content={"message": "No se recibieron textos para limpiar"})
+    
+    if not base_prompt:
+        return JSONResponse(status_code=400, content={"message": "No hay prompt base en prompt.txt"})
 
-        if not api_key_value:
-            return JSONResponse(status_code=400, content={"message": "La variable de entorno GOOGLE_API_KEY no está configurada o está vacía."})
+    if not api_key_value:
+        return JSONResponse(status_code=400, content={"message": "La variable de entorno GOOGLE_API_KEY no está configurada o está vacía."})
 
-        # leer el prompt base desde archivo
-        with open("prompt.txt", "r", encoding="utf-8") as f:
-            base_prompt = f.read()
+    client = genai.Client(api_key=api_key_value)
 
+    for raw_text in data.string_result:
         try:
-            client = genai.Client(api_key=api_key_value)
+            cleaned = discard_after_headers(raw_text)
+            if not cleaned:
+                results.append([])
+                continue
+
+            full_prompt = base_prompt.format(input_tokens=cleaned)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=full_prompt
+            )
+            ai_output = response.text.strip()
+
+            # Limpieza y parseo seguro
+            ai_clean = ai_output.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(ai_clean)
+            results.append(parsed if isinstance(parsed, list) else [])
         except Exception as e:
-            return JSONResponse(status_code=500, content={"message": "Error al inicializar el cliente", "error": str(e)})
-
-        model_name = 'gemini-2.5-flash' 
-        full_prompt = base_prompt.format(input_tokens=cleaned)
-        response = client.models.generate_content(
-            model=model_name,
-            contents=full_prompt
-        )
-
-        ai_output = response.text
-        print(ai_output)
-
-        return JSONResponse(content={
-            "message": "Datos limpiados y enviados a Llama",
-            "ai_result": ai_output
-        })
-
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"message": "Error en limpiar", "error": str(e)})
+            print(f"Error limpiando texto: {e}")
+            results.append([])  # fallback vacío
+    print(results)
+    """
+    return JSONResponse(content={
+        "message": "Datos limpiados y enviados a Gemini",
+        "ai_result": results
+    })

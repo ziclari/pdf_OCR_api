@@ -81,15 +81,18 @@ def predecir(request: PredictRequest):
         result = predictor(doc)
 
         # generar visualización
-        pred_images = []
+        predicciones = []
         for i, (page, img_path) in enumerate(zip(result.pages, archivos)):
             save_path = draw_overlay(img_path, page, PREDICT_DIR)
-            pred_images.append(save_path)
-
+            predicciones.append({
+                "imagen": img_path,
+                "overlay": save_path,
+                "texto": page.render()
+            })
+        print(predicciones)
         return JSONResponse(content={
             "message": "OCR completado",
-            "predicciones": pred_images,
-            "texto": result.render()
+            "predicciones": predicciones
         })
 
     except Exception as e:
